@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Rotating the tetremino resets post to an old state</title>
+        <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+/* From extension ms-toolsai.jupyter */
+/* These classnames are inherited from bootstrap, but are present in most notebook renderers */
+
+.alert {
+    width: auto;
+    padding: 1em;
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+.alert > *:last-child {
+    margin-bottom: 0;
+}
+#preview > .alert:last-child {
+    /* Prevent this being set to zero by the default notebook stylesheet */
+    padding-bottom: 1em;
+}
+
+.alert-success {
+    /* Note there is no suitable color available, so we just copy "info" */
+    background-color: var(--theme-info-background);
+    color: var(--theme-info-foreground);
+}
+.alert-info {
+    background-color: var(--theme-info-background);
+    color: var(--theme-info-foreground);
+}
+.alert-warning {
+    background-color: var(--theme-warning-background);
+    color: var(--theme-warning-foreground);
+}
+.alert-danger {
+    background-color: var(--theme-error-background);
+    color: var(--theme-error-foreground);
+}
+
+</style>
+        
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+        
+    </head>
+    <body class="vscode-body vscode-light">
+        <h2 id="rotating-the-tetremino-resets-post-to-an-old-state">Rotating the tetremino resets post to an old state</h2>
+<p>Lets start at the rotate function</p>
+<pre><code>  const rotatePlayer = (direction: number, stage: ITile[][]) =&gt; {
+    player = player.rotate(direction);
+    if(!isValidMove(player, { x: 0, y: 0 }, stage)) {
+        player = player.rotate(-direction);
+    }
+    setPlayer(player);
+</code></pre>
+<p>where rotate looks like</p>
+<pre><code>    rotate = (direction:number) =&gt; {
+        const matrix = this.tetromino
+        if (direction &gt; 0) {
+            this.tetromino = matrix[0].map((_val, index) =&gt; matrix.map(row =&gt; row[index]).reverse());
+        } else if (direction &lt; 0) {
+            this.tetromino = matrix[0].map((_val, index) =&gt; matrix.map(row =&gt; row[row.length-1-index])); 
+        }
+        return this;
+    }
+</code></pre>
+<p>and our player consists of</p>
+<pre><code>    collided: boolean;
+    tetromino: ITile[][];
+    position: ICoordinate;
+</code></pre>
+<p>This means we should only be changing the tetromino grid, not the tetromino placement on rotation.</p>
+<p>I think theres something tricky referencing a state variable (player) in this way. Its possible that the passed in player state is out of sync with the rendered one.</p>
+<p>When we rotate, we set the player to whatever we've stored in this fucntion, so if this is older, the effect will be moving the player back to an old position.</p>
+<p>At the moment thie player is passed into <code>usePlayer</code></p>
+<pre><code>export const usePlayer = (player:Player, setPlayer: any, setStage:any, setIsGameOver:any) =&gt; {
+
+  const rotatePlayer = (direction: number, stage: ITile[][]) =&gt; {
+</code></pre>
+<p>Why are we doing this?</p>
+<p>To avoid returning player from usePlayer. Lets move player in and return it out instead. We can clean up the function signature later.</p>
+<p>WAIT no thats not why. Its due to dependency between states.</p>
+<h2 id="tetreminos-keep-spawning-after-game-over">Tetreminos keep spawning after game over</h2>
+<p>Likely not stopping player/interval when game over. Lets try setting interval to 0 when game over?</p>
+<p><code>const dropTime = useCallback(() =&gt; (BASE_INTERVAL / (gameStatus.level + 1)), [gameStatus.level]);</code></p>
+<p>becomes</p>
+<p><code> const dropTime = useCallback(() =&gt; isGameOver ? 0 : (BASE_INTERVAL / (gameStatus.level + 1)), [gameStatus.level, isGameOver]);</code></p>
+<p>This makes it infinetly fast. Can set a very high number but this isn't the intention</p>
+<p>Can not drop the player on game over</p>
+<p><code>    useInterval(() =&gt; playerInput(KEYS.DOWN, stage), dropTime());</code></p>
+<p>becomes</p>
+<p><code>    useInterval(() =&gt; isGameOver ? playerInput(KEYS.DOWN, stage) : filler(), dropTime());</code></p>
+<p>This doesnt prevent collison checks? OOps wrong way around</p>
+<p><code>    useInterval(() =&gt; !isGameOver ? playerInput(KEYS.DOWN, stage) : 0, dropTime());</code></p>
+<p>This stops the game from updating after game over - <strong>but</strong> we're still spawning one overlaying tetremino before noticing the game is over, this looks bad.</p>
+<p>How are we checking the game is over? In usePlayer - this feels somewhat wrong.</p>
+<pre><code class="language-{javascript}">
+if(!isValidMove(resetPlayer, {x:0,y:0}, stage)){
+    setIsGameOver(true);
+}
+setPlayer(resetPlayer)
+</code></pre>
+<p>We're just not exiting before seting player. Lets fix that.</p>
+<pre><code class="language-{javascript}">if(!isValidMove(resetPlayer, {x:0,y:0}, stage)){
+    setIsGameOver(true);
+} else {
+    setPlayer(resetPlayer);
+}
+</code></pre>
+<p>Fixed!</p>
+
+        
+        
+    </body>
+    </html>
