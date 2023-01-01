@@ -23,9 +23,9 @@ const Tetris = () => {
 
     const [isGameOver, setIsGameOver] = useState(false);
     const [gameStatus, calculateGameStatus, resetGameStatus] = useGameStatus();
-    const [stage, setStage, sweepRows] = useStage();
-    const [drawing, setDrawing, _] = useStage();
-    const [player, playerInput, resetPlayer] = usePlayer(setStage, setIsGameOver);
+    const [stage, setStage, sweepRows] = useStage(setIsGameOver);
+    const [drawing, setDrawing, _] = useStage(setIsGameOver);
+    const [player, playerInput, resetPlayer] = usePlayer(setStage);
 
     useEffect(() => {
         setDrawing(draw(stage, player))

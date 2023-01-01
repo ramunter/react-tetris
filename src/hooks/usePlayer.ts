@@ -47,7 +47,7 @@ const addPlayerToStage = (stage:  ITile[][], player: Player) => {
   return stage
 }
 
-export const usePlayer = (setStage:any, setIsGameOver:any) => {
+export const usePlayer = (setStage:any) => {
 
   const [player, setPlayer] = useState(EMPTY_PLAYER);
 
@@ -128,11 +128,7 @@ export const usePlayer = (setStage:any, setIsGameOver:any) => {
   const resetPlayer = useCallback((stage: ITile[][]) => {
     const new_tetrimino = structuredClone(sample(Object.values(TETROMINOS)))!
     const resetPlayer = new Player({...START_COORDINATE}, new_tetrimino);
-    if(!isValidMove(resetPlayer, {x:0,y:0}, stage)){
-      setIsGameOver(true);
-    } else {
-      setPlayer(resetPlayer);
-    }
+    setPlayer(resetPlayer);
   }, [])
 
   return [player, playerInput, resetPlayer] as const;

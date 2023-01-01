@@ -9,7 +9,7 @@ const createNewStage = ():  ITile[][] => {
     return rows
 }
 
-export const useStage = () => {
+export const useStage = (setIsGameOver:any) => {
 
     const init_stage = createNewStage()
 
@@ -17,6 +17,7 @@ export const useStage = () => {
     let newRowsClear = 0
 
     const noEmptyTilesInRow = (row: ITile[]) => row.findIndex((tile: ITile) => tile.status === TileStatus.Empty) === -1;
+    const lockedTileInRow = (row: ITile[]) => row.findIndex((tile: ITile) => tile.status === TileStatus.Locked) !== -1;
 
     const sweepRows = (stage:  ITile[][]): number => {
         let newStage = stage.reduce((newStage:  ITile[][], row:  ITile[]) => {
@@ -31,6 +32,8 @@ export const useStage = () => {
         setStage(newStage);
         return newRowsClear;
     }
+    
+    useEffect(()=> setIsGameOver(lockedTileInRow(stage[4])), [stage]);
 
     return [stage, setStage, sweepRows] as const;
 };
